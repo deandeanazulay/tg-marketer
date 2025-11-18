@@ -363,3 +363,7 @@ export class MockStore {
     save(this.ds);
   }
 }
+
+export function getMockDataStore(ownerId: string = 'demo-user') {
+  return new MockStore(ownerId);
+}
