@@ -8,13 +8,15 @@ import { Destinations } from './pages/Destinations';
 import { Settings } from './pages/Settings';
 import { SessionManager } from './pages/SessionManager';
 import { createClient } from '@supabase/supabase-js';
+import { SupabaseDataStore } from './data/supabase';
+import { getMockDataStore } from './data/mock';
 import type { DataStore } from './types';
 
 type Page = 'lobby' | 'destinations' | 'compose' | 'campaigns' | 'accounts' | 'settings' | 'sessions';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 const DestinationsIcon = ({ className, active }: { className?: string; active?: boolean }) => (
   <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? "2.5" : "2"} strokeLinecap="round" strokeLinejoin="round">
@@ -51,14 +53,25 @@ function App() {
   const [currentPage, setCurrentPage] = useState<Page>('lobby');
   const [ready, setReady] = useState(false);
   const [ownerId, setOwnerId] = useState<string>('user');
+  const [dataStore, setDataStore] = useState<DataStore | null>(null);
+  const [mode, setMode] = useState<'demo' | 'real'>('demo');
   const theme = telegram.getTheme();
 
   useEffect(() => {
     const initApp = async () => {
       await telegram.init();
       const user = telegram.getUser();
-      if (user) {
-        setOwnerId(user.id.toString());
+      const userId = user ? user.id.toString() : 'demo_user';
+      setOwnerId(userId);
+
+      if (supabase) {
+        const store = new SupabaseDataStore(supabase, userId);
+        setDataStore(store);
+        setMode('real');
+      } else {
+        const store = getMockDataStore(userId);
+        setDataStore(store);
+        setMode('demo');
       }
     };
     initApp();
@@ -74,7 +87,7 @@ function App() {
     setCurrentPage(page);
   };
 
-  if (!ready) {
+  if (!ready || !dataStore) {
     return <Lobby onReady={handleReady} />;
   }
 
@@ -92,16 +105,16 @@ function App() {
       <div className="flex-1 pb-20">
         {currentPage === 'destinations' && (
           <Destinations
-            onCompose={() => navigateTo('compose')}
-            dataStore={supabase}
+            dataStore={dataStore}
             ownerId={ownerId}
+            mode={mode}
           />
         )}
 
         {currentPage === 'compose' && (
           <Compose
             onBack={() => navigateTo('destinations')}
-            dataStore={supabase}
+            dataStore={dataStore}
             ownerId={ownerId}
           />
         )}
@@ -109,7 +122,7 @@ function App() {
         {currentPage === 'campaigns' && (
           <Campaigns
             onCompose={() => navigateTo('compose')}
-            dataStore={supabase}
+            dataStore={dataStore}
             ownerId={ownerId}
           />
         )}

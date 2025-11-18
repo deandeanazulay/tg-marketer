@@ -46,6 +46,13 @@ export function Destinations({ dataStore, ownerId, mode }: DestinationsProps) {
   const [refreshing, setRefreshing] = useState(false);
   const showSkeleton = useSkeleton(100);
 
+  const handleAddBot = () => {
+    telegram.impact('medium');
+    const botUsername = import.meta.env.VITE_BOT_USERNAME || 'your_bot';
+    const addUrl = `https://t.me/${botUsername}?startgroup=true`;
+    window.open(addUrl, '_blank');
+  };
+
   useTelegramUI({
     title: 'Destinations',
     mainButton: !loading && destinations.length === 0 ? {
@@ -76,13 +83,6 @@ export function Destinations({ dataStore, ownerId, mode }: DestinationsProps) {
     telegram.impact('light');
     setRefreshing(true);
     await loadDestinations(false);
-  };
-
-  const handleAddBot = () => {
-    telegram.impact('medium');
-    const botUsername = import.meta.env.VITE_BOT_USERNAME || 'your_bot';
-    const addUrl = `https://t.me/${botUsername}?startgroup=true`;
-    window.open(addUrl, '_blank');
   };
 
   const handleLoadDemoData = async () => {
