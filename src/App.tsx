@@ -1,354 +1,129 @@
-import React, { useState, useEffect } from 'react';
-import { telegram } from './lib/telegram';
-import { Lobby } from './pages/Lobby'; // Keep Lobby for initial mode selection
-import { ModeBadge } from './components/ModeBadge';
-import { Destinations } from './pages/Destinations';
-import { Compose } from './pages/Compose';
-import { Campaigns } from './pages/Campaigns';
-import { Accounts } from './pages/Accounts';
-import { Settings } from './pages/Settings';
-import { Toast } from './components/Toast';
-import { MockStore } from './data/mock';
+import { useEffect, useState } from 'react';
 
-type Screen = 'lobby' | 'destinations' | 'compose' | 'campaigns' | 'accounts' | 'settings';
-import { clientBootstrap, setUserModePreference } from './lib/bootstrap';
-import { BootstrapConfig, DataStore } from './types';
-
-// Navigation icons as inline SVGs
-const NavIcons = {
-  destinations: () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-      <circle cx="12" cy="10" r="3"/>
-    </svg>
-  ),
-  compose: () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M3 3h18v18h-18z"/>
-      <path d="M21 9l-9 6-9-6"/>
-    </svg>
-  ),
-  campaigns: () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M3 3v18h18"/>
-      <path d="M18 17V9"/>
-      <path d="M13 17V5"/>
-      <path d="M8 17v-3"/>
-    </svg>
-  ),
-  accounts: () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-      <circle cx="12" cy="7" r="4"/>
-    </svg>
-  ),
-  settings: () => (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1"/>
-    </svg>
-  )
-};
+interface SystemStatus {
+  status: string;
+  version: string;
+  database: string;
+  workers: number;
+}
 
 function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('lobby');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [telegramId, setTelegramId] = useState<string | null>(null);
-  const [jwt, setJwt] = useState<string | null>(null);
+  const [status, setStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [appMode, setAppMode] = useState<'demo' | 'real' | null>(null);
-  const [bootstrapConfig, setBootstrapConfig] = useState<BootstrapConfig | null>(null);
-  const [dataStore, setDataStore] = useState<DataStore | null>(null);
 
   useEffect(() => {
-    initializeApp();
+    fetch('/api/health')
+      .then(res => res.json())
+      .then(data => {
+        setStatus(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch status:', err);
+        setLoading(false);
+      });
   }, []);
 
-  const initializeApp = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Check if we're in Telegram
-      const isTelegram = await telegram.init();
-
-      if (!isTelegram) {
-        // Not in Telegram - show demo mode directly
-        const defaultConfig: BootstrapConfig = {
-          adapters: { data: 'mock' },
-          features: { someFeature: true },
-          ui: { brand: 'TG Marketer', accent: '#0088cc' },
-          defaults: { mode: 'demo' }
-        };
-        
-        setAppMode('demo');
-        setTelegramId('demo_user');
-        setBootstrapConfig(defaultConfig);
-        setIsAuthenticated(true);
-        
-        const store = new MockStore(fetchedTelegramId || 'demo_user');
-        setDataStore(store);
-        
-        setCurrentScreen('destinations');
-        setLoading(false);
-        return;
-      }
-
-      // Perform client-side bootstrap (verify initData, get config, user mode)
-      const { cfg, jwt: fetchedJwt, mode, telegramId: fetchedTelegramId } = await clientBootstrap();
-      
-      setTelegramId(fetchedTelegramId);
-      setJwt(fetchedJwt);
-      setAppMode(mode);
-      setBootstrapConfig(cfg);
-      setIsAuthenticated(true);
-
-      const store = new MockStore(fetchedTelegramId || 'demo_user');
-      setDataStore(store);
-
-      // If user has a saved preference, skip lobby and go directly to app
-      if (mode) {
-        setCurrentScreen('destinations');
-      }
-    } catch (error) {
-      console.error('App initialization failed:', error);
-      setError(error instanceof Error ? error.message : 'Initialization failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleModeSelect = async (mode: 'demo' | 'real') => {
-    if (!telegramId) {
-      Toast.error("Cannot select mode without a Telegram ID. Please restart the app in Telegram.");
-      return;
-    }
-    try {
-      setLoading(true);
-      
-      if (telegramId !== 'demo_user') {
-        await setUserModePreference(telegramId, mode);
-      }
-      
-      setAppMode(mode);
-      
-      // Re-initialize API service with new mode
-      if (bootstrapConfig) {
-        const store = new MockStore(fetchedTelegramId || 'demo_user');
-        setDataStore(store);
-      }
-      
-      setCurrentScreen('destinations');
-    } catch (err) {
-      console.error('Failed to set user mode:', err);
-      Toast.error(err instanceof Error ? err.message : 'Failed to set user mode');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleBackToLobby = () => {
-    setAppMode(null);
-    setCurrentScreen('lobby');
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setTelegramId(null);
-    setCurrentScreen('lobby');
-    setAppMode(null);
-    localStorage.removeItem('telegram_jwt');
-  };
-
-  const theme = telegram.getTheme();
-
-  // Apply theme to body
-  useEffect(() => {
-    if (typeof document !== 'undefined') {
-      document.body.style.backgroundColor = theme.bg_color;
-      document.body.style.color = theme.text_color;
-    }
-  }, [theme]);
-
-  // Loading screen
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: theme.bg_color }}>
-        <div className="text-center">
-          <div 
-            className="w-12 h-12 border-3 border-t-transparent rounded-full animate-spin mx-auto mb-6"
-            style={{ borderColor: theme.button_color, borderTopColor: 'transparent' }}
-          />
-          <div 
-            className="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
-            style={{ backgroundColor: theme.button_color }}
-          >
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-            </svg>
-          </div>
-          <h2 className="text-xl font-semibold mb-2" style={{ color: theme.text_color }}>
-            TG Marketer
-          </h2>
-          <p className="text-sm" style={{ color: theme.hint_color }}>
-            Loading your workspace...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Error screen
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: theme.bg_color }}>
-        <div className="text-center max-w-sm">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h2 className="text-xl font-semibold mb-3" style={{ color: theme.text_color }}>
-            Something went wrong
-          </h2>
-          <p className="text-sm mb-6 leading-relaxed" style={{ color: theme.hint_color }}>
-            {error}
-          </p>
-          <button 
-            onClick={initializeApp}
-            className="px-6 py-3 rounded-xl font-medium transition-all active:scale-95"
-            style={{ 
-              backgroundColor: theme.button_color,
-              color: theme.button_text_color
-            }}
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Not authenticated
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6" style={{ backgroundColor: theme.bg_color }}>
-        <div className="text-center max-w-sm">
-          <div className="text-6xl mb-4">🔐</div>
-          <h2 className="text-xl font-semibold mb-3" style={{ color: theme.text_color }}>
-            Authentication Required
-          </h2>
-          <p className="text-sm leading-relaxed" style={{ color: theme.hint_color }}>
-            Please open this app through Telegram to continue
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Main app
   return (
-    <div 
-      className="h-screen flex flex-col bg-gray-50"
-      style={{ backgroundColor: theme.bg_color }}
-    >
-      {/* Mode Badge - Fixed Position */}
-      {appMode && currentScreen !== 'lobby' && (
-        <div className="absolute top-2 right-2 z-50">
-          <ModeBadge mode={appMode} />
-        </div>
-      )}
-
-      {/* Lobby Screen - Full Height */}
-      {currentScreen === 'lobby' && (
-        <div className="flex-1 flex items-center justify-center p-4">
-          <Lobby onModeSelect={handleModeSelect} />
-        </div>
-      )}
-      
-      {/* Main App Layout */}
-      {currentScreen !== 'lobby' && isAuthenticated && (
-        <>
-          {/* Main Content Area - Flex Grow */}
-          <main className="flex-1 flex flex-col overflow-hidden bg-gray-50" style={{ backgroundColor: theme.secondary_bg_color || theme.bg_color }}>
-            <div className="flex-1 overflow-auto scrollbar-hide">
-              {currentScreen === 'destinations' && dataStore && (
-                <Destinations 
-                  dataStore={dataStore!} 
-                  ownerId={telegramId!} 
-                  mode={appMode!}
-                />
-              )}
-              {currentScreen === 'compose' && dataStore && (
-                <Compose 
-                  onBack={() => setCurrentScreen('destinations')} 
-                  dataStore={dataStore!} 
-                  ownerId={telegramId!} 
-                />
-              )}
-              {currentScreen === 'campaigns' && dataStore && (
-                <Campaigns 
-                  onCompose={() => setCurrentScreen('compose')} 
-                  dataStore={dataStore!} 
-                  ownerId={telegramId!} 
-                />
-              )}
-              {currentScreen === 'accounts' && (
-                <Accounts jwt={jwt} />
-              )}
-              {currentScreen === 'settings' && dataStore && (
-                <Settings 
-                  onLogout={handleLogout} 
-                  onBackToLobby={handleBackToLobby} 
-                  dataStore={dataStore!} 
-                  ownerId={telegramId!} 
-                  currentMode={appMode} 
-                />
-              )}
+    <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="max-w-2xl w-full p-8">
+        <div className="bg-gray-800 rounded-lg shadow-xl p-8">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold mb-2">TG Marketer</h1>
+            <p className="text-gray-400">Backend API & Worker System</p>
+            <div className="mt-4 inline-block px-4 py-2 bg-blue-600 rounded-full text-sm font-medium">
+              v2.0.0 - API Only
             </div>
-          </main>
+          </div>
 
-          {/* Bottom Navigation - Fixed to Bottom */}
-          <nav 
-            className="flex-shrink-0 border-t px-2 py-1 safe-area-inset-bottom backdrop-blur-md"
-            style={{
-              backgroundColor: theme.bg_color,
-              borderColor: theme.hint_color + '20',
-              boxShadow: '0 -1px 3px rgba(0,0,0,0.1)'
-            }}
-          >
-            <div className="flex justify-around items-center max-w-lg mx-auto w-full">
-              {[
-                { key: 'destinations', title: 'Chats', icon: NavIcons.destinations },
-                { key: 'compose', title: 'Compose', icon: NavIcons.compose },
-                { key: 'campaigns', title: 'Stats', icon: NavIcons.campaigns },
-                { key: 'accounts', title: 'Accounts', icon: NavIcons.accounts },
-                { key: 'settings', title: 'Settings', icon: NavIcons.settings }
-              ].map(({ key, title, icon: Icon }) => {
-                const isActive = currentScreen === key;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      telegram.impact('light');
-                      setCurrentScreen(key as Screen);
-                    }}
-                    className="flex flex-col items-center justify-center py-2 px-2 rounded-lg transition-all duration-150 min-w-0 flex-1 max-w-[70px] active:scale-95"
-                    style={{
-                      color: isActive ? theme.button_color : theme.hint_color,
-                      backgroundColor: isActive ? theme.button_color + '10' : 'transparent'
-                    }}
-                  >
-                    <div className="flex items-center justify-center mb-0.5">
-                      <Icon />
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+              <p className="mt-4 text-gray-400">Loading system status...</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="border-t border-gray-700 pt-6">
+                <h2 className="text-xl font-semibold mb-4">System Status</h2>
+
+                {status ? (
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center p-3 bg-gray-700 rounded">
+                      <span className="text-gray-300">Status</span>
+                      <span className="font-medium text-green-400">{status.status}</span>
                     </div>
-                    <span className="text-xs font-medium truncate leading-none">
-                      {title}
-                    </span>
-                  </button>
-                );
-              })}
+                    <div className="flex justify-between items-center p-3 bg-gray-700 rounded">
+                      <span className="text-gray-300">Version</span>
+                      <span className="font-medium">{status.version}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gray-700 rounded">
+                      <span className="text-gray-300">Database</span>
+                      <span className="font-medium">{status.database}</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gray-700 rounded">
+                      <span className="text-gray-300">Active Workers</span>
+                      <span className="font-medium">{status.workers || 0}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center text-red-400 p-4 bg-red-900/20 rounded">
+                    Failed to load system status
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-gray-700 pt-6">
+                <h2 className="text-xl font-semibold mb-4">API Documentation</h2>
+                <div className="space-y-2 text-sm">
+                  <div className="p-3 bg-gray-700 rounded">
+                    <code className="text-blue-300">POST /api/auth?action=login</code>
+                    <p className="text-gray-400 mt-1">Authenticate with email/password</p>
+                  </div>
+                  <div className="p-3 bg-gray-700 rounded">
+                    <code className="text-blue-300">POST /api/auth?action=register</code>
+                    <p className="text-gray-400 mt-1">Create new user account</p>
+                  </div>
+                  <div className="p-3 bg-gray-700 rounded">
+                    <code className="text-blue-300">GET /api/accounts</code>
+                    <p className="text-gray-400 mt-1">List Telegram sending accounts</p>
+                  </div>
+                  <div className="p-3 bg-gray-700 rounded">
+                    <code className="text-blue-300">GET /api/worker?action=stats</code>
+                    <p className="text-gray-400 mt-1">Worker system statistics</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-700 pt-6">
+                <h2 className="text-xl font-semibold mb-4">Quick Links</h2>
+                <div className="grid grid-cols-2 gap-4">
+                  <a
+                    href="/api/health"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-4 bg-gray-700 hover:bg-gray-600 rounded text-center transition"
+                  >
+                    Health Check
+                  </a>
+                  <a
+                    href="https://github.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-4 bg-gray-700 hover:bg-gray-600 rounded text-center transition"
+                  >
+                    Worker Docs
+                  </a>
+                </div>
+              </div>
+
+              <div className="text-center text-sm text-gray-500 pt-4">
+                <p>TG Marketer is now a backend-only system.</p>
+                <p className="mt-1">Use the API endpoints to integrate with your applications.</p>
+              </div>
             </div>
-          </nav>
-        </>
-      )}
+          )}
+        </div>
+      </div>
     </div>
   );
 }

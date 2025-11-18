@@ -1,24 +1,24 @@
-# TG Marketer - Telegram Mini App
+# TG Marketer - Backend API & Worker System
 
-A lightweight Telegram Mini App for managing marketing campaigns with a secure, self-hosted Docker stack and distributed worker system for multi-account message sending.
+A self-hosted backend system for managing multi-account Telegram mass messaging campaigns with distributed worker support.
 
 ## Features
 
-- **🚀 One-Command Deployment**: Complete Docker stack with automatic HTTPS
-- **🔒 Secure by Default**: HMAC verification, encrypted SQLite, security headers
-- **📊 Database Choice**: PostgreSQL with automated backups OR SQLite with Litestream
-- **🌐 Automatic HTTPS**: Caddy reverse proxy with Let's Encrypt
-- **📱 Mini App Native**: Runs inside Telegram using official WebApp SDK
-- **🔄 Auto-Updates**: Optional Watchtower integration
+- **🔒 Secure API**: JWT-based authentication with email/password
+- **📊 Supabase Backend**: PostgreSQL database with real-time capabilities
 - **⚡ Multi-Account Worker**: Distributed Python worker for mass sending via Telethon
 - **📈 Rate Limiting**: Automatic hourly/daily limits with FloodWait handling
 - **🔄 Health Monitoring**: Worker heartbeat and status tracking
+- **🚀 Job Queue**: Robust job processing with retry logic
+- **🎯 Session Management**: Auto-discover and manage Telethon session files
 
-## 🚀 One-Command Setup
+## Quick Start
 
 ### Prerequisites
-- Docker and Docker Compose
-- Domain name (for production) or localhost (for development)
+- Node.js 18+ and npm
+- Python 3.10+ (for worker)
+- Supabase account (free tier works)
+- Telegram accounts with session files
 
 ### 1. Clone and Configure
 
@@ -29,179 +29,116 @@ cd tg-marketer
 # Copy environment template
 cp .env.example .env
 
-# Edit .env with your Telegram bot token and other settings
+# Edit .env with your Supabase credentials
 nano .env
 ```
 
-### 2. Choose Your Database & Start
+### 2. Install Dependencies
 
-**Option A: SQLite with Litestream backups (Recommended for small-medium apps)**
 ```bash
-make up
+npm install
 ```
 
-**Option B: PostgreSQL with pgBackRest backups (Recommended for high-traffic apps)**
+### 3. Setup Database
+
+The migrations will be automatically applied when you deploy to Supabase or can be run manually:
+
 ```bash
-make up-pg
+# Migrations are in: supabase/migrations/
+# They will create:
+# - users table (authentication)
+# - tg_accounts table (Telegram accounts)
+# - jobs table (message queue)
+# - worker_heartbeats table (worker health)
+# - And other necessary tables
 ```
 
-**Option C: With auto-updates enabled**
+### 4. Start Backend
+
 ```bash
-make up-watch
+npm run dev
 ```
 
-### 3. Access Your App
-
-After startup, you'll see:
-- **Web App**: https://app.localhost
-- **API**: https://api.localhost  
-- **MinIO Console** (SQLite mode): http://localhost:9001
+The API will be available at `http://localhost:3000`
 
 ## 🔧 Configuration
 
-### Database Adapter Selection
+### Environment Variables
 
-The app now uses **database-driven configuration**. To change adapters:
+```env
+# Supabase Configuration
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-1. **Connect to your database**
-2. **Update the `app_config` table**:
-   ```bash
-   # For PostgreSQL
-   UPDATE app_config SET config = jsonb_set(config, '{adapters,data}', '"postgres"') WHERE app = 'miniapp';
-   
-   # For SQLite  
-   UPDATE app_config SET config = jsonb_set(config, '{adapters,data}', '"sqlite"') WHERE app = 'miniapp';
-   
-   # For Mock/Demo mode
-   UPDATE app_config SET config = jsonb_set(config, '{adapters,data}', '"mock"') WHERE app = 'miniapp';
-   ```
+# API Configuration
+API_URL=http://localhost:3000/api
+API_SECRET_KEY=your_secret_key_for_jwt_signing
 
-3. **Restart the API container**:
-   ```bash
-   docker compose restart api
-   ```
+# Worker Authentication
+WORKER_JWT_SECRET=your_worker_jwt_secret
 
-### Production Deployment
+# Optional: Admin credentials
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=secure_password
+```
 
-1. **Update Caddyfile** with your real domains:
-   ```caddyfile
-   your-app.com {
-       reverse_proxy web:80
-       # ... rest of config
-   }
-   
-   api.your-app.com {
-       reverse_proxy api:3000
-       # ... rest of config  
-   }
-   ```
+### Default Admin Account
 
-2. **Set production environment variables**:
-   ```bash
-   # Strong passwords for production
-   POSTGRES_PASSWORD=your_very_secure_password
-   MINIO_ROOT_PASSWORD=another_secure_password
-   TELEGRAM_BOT_TOKEN=your_real_bot_token
-   ```
+A default admin account is created during migration:
+- Email: `admin@tgmarketer.local`
+- Password: `admin123`
 
-3. **Deploy**:
-   ```bash
-   make up-pg  # or make up for SQLite
-   ```
+**IMPORTANT**: Change this password immediately after first login!
 
-## 🛠️ Management Commands
+## 🔐 API Authentication
+
+### Register New User
 
 ```bash
-make help          # Show all available commands
-make up            # Start with SQLite (default)
-make up-pg         # Start with PostgreSQL  
-make down          # Stop all services
-make logs          # View all logs
-make logs-api      # View API logs only
-make health        # Check service health
-make rebuild       # Rebuild and restart
-make clean         # Remove everything (⚠️ destructive)
-
-# Database operations
-make backup-now    # Trigger immediate backup (PostgreSQL)
-make restore-db    # Restore from backup (PostgreSQL)
-
-# Development helpers
-make dev-reset     # Reset development environment
-make dev-shell-api # Open shell in API container
-make dev-shell-db  # Open database shell
+curl -X POST http://localhost:3000/api/auth?action=register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "securepassword123",
+    "name": "John Doe"
+  }'
 ```
 
-## 🔒 Security Features
-
-- **🔐 SQLCipher Encryption**: SQLite databases are encrypted with AES-256
-- **🛡️ Security Headers**: HSTS, CSP, COEP/COOP, XSS protection
-- **🔑 Secret Management**: Docker secrets for sensitive data
-- **🚫 No Client Secrets**: All tokens and keys stay server-side
-- **✅ HMAC Verification**: Telegram initData verified with bot token
-- **🔒 SCRAM-SHA-256**: PostgreSQL uses strong authentication
-
-## 💾 Backup Strategies
-
-### PostgreSQL Mode
-- **pgBackRest**: Automated full backups (daily) + incremental (hourly)
-- **Point-in-time recovery** capability
-- **Backup retention**: 7 full, 4 differential, 3 incremental
-
-### SQLite Mode  
-- **Litestream**: Continuous replication to S3-compatible storage (MinIO)
-- **Real-time sync**: Changes replicated every 10 seconds
-- **Snapshot retention**: 72 hours of point-in-time recovery
-
-## 🏗️ Architecture
-
-```
-┌─────────────────┐    ┌──────────────┐    ┌─────────────┐
-│   Caddy Proxy   │────│  Web App     │    │   API       │
-│  (HTTPS/TLS)    │    │  (React)     │    │ (Node.js)   │
-└─────────────────┘    └──────────────┘    └─────────────┘
-         │                                         │
-         │              ┌─────────────────────────┼─────────────┐
-         │              │                         │             │
-         │              ▼                         ▼             ▼
-    ┌─────────┐   ┌──────────────┐      ┌─────────────┐  ┌──────────────┐
-    │ Client  │   │ PostgreSQL   │  OR  │   SQLite    │  │   MinIO      │
-    │(Browser)│   │+ pgBackRest  │      │+ Litestream │  │ (S3 Storage) │
-    └─────────┘   └──────────────┘      └─────────────┘  └──────────────┘
+Response:
+```json
+{
+  "success": true,
+  "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "role": "user"
+  }
+}
 ```
 
-## 🔧 Troubleshooting
+### Login
 
-### Common Issues
+```bash
+curl -X POST http://localhost:3000/api/auth?action=login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "securepassword123"
+  }'
+```
 
-**HTTPS Certificate Issues (localhost)**
-- Accept the self-signed certificate in your browser
-- Or add `--insecure` flag for development
+### Verify Token
 
-**Database Connection Issues**
-- Check logs: `make logs-db`
-- Verify environment variables in `.env`
-- Ensure secrets are created: `make secrets`
-
-**API Health Check Failing**
-- Check API logs: `make logs-api`
-- Verify database is healthy: `make health`
-- Check if migrations ran: `make dev-shell-api`
-
-**Port Conflicts**
-- Change ports in `docker-compose.yml` if needed
-- Default ports: 80, 443 (Caddy), 9000, 9001 (MinIO)
-
-### Getting Help
-
-1. **Check service health**: `make health`
-2. **View logs**: `make logs` 
-3. **Reset environment**: `make dev-reset`
-4. **Open API shell**: `make dev-shell-api`
+```bash
+curl -X POST http://localhost:3000/api/auth?action=verify \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
 
 ## 🤖 Worker System
 
-TG Marketer includes a distributed worker system that runs locally on Windows (or other OS) and processes message sending jobs using multiple Telegram accounts via Telethon.
+TG Marketer includes a distributed worker system that runs locally and processes message sending jobs using multiple Telegram accounts via Telethon.
 
 ### Worker Features
 
@@ -212,20 +149,23 @@ TG Marketer includes a distributed worker system that runs locally on Windows (o
 - **Health Monitoring**: Regular heartbeat reporting to API
 - **Error Recovery**: Retry logic with exponential backoff
 
-### Quick Start
+### Quick Worker Setup
 
 1. **Install Worker Dependencies**:
 ```bash
 cd worker
 python -m venv venv
 venv\Scripts\activate  # Windows
+# or
+source venv/bin/activate  # Linux/Mac
+
 pip install -r requirements.txt
 ```
 
 2. **Configure Worker**:
 ```bash
-copy config.example.toml config.toml
-copy .env.example .env
+cp config.example.toml config.toml
+cp .env.example .env
 # Edit config.toml and .env with your settings
 ```
 
@@ -244,59 +184,177 @@ premium/
 python src/main.py
 ```
 
-5. **Register Accounts in TG Marketer**:
-   - Log into TG Marketer web interface
-   - Navigate to Accounts page
-   - Add each account with its session_key
-   - Set hourly/daily limits
+5. **Register Accounts via API**:
+```bash
+curl -X POST http://localhost:3000/api/accounts \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "Premium Account 1",
+    "session_key": "989906046260",
+    "phone": "+1234567890",
+    "is_premium": true,
+    "hourly_limit": 100,
+    "daily_limit": 500
+  }'
+```
 
 For detailed worker documentation, see [worker/README.md](worker/README.md).
 
-### Worker API Endpoints
+## 📡 API Endpoints
 
-The system includes REST API endpoints for worker communication:
+### Health Check
 
-- `GET /api/accounts` - List all sending accounts
-- `POST /api/accounts` - Register new account
+```bash
+GET /api/health
+```
+
+Returns system status and active worker count.
+
+### Authentication
+
+- `POST /api/auth?action=register` - Create new user
+- `POST /api/auth?action=login` - Login user
+- `POST /api/auth?action=verify` - Verify JWT token
+
+### Account Management
+
+All account endpoints require `Authorization: Bearer <JWT>` header.
+
+- `GET /api/accounts` - List all Telegram sending accounts
+- `POST /api/accounts` - Register new Telegram account
+- `PUT /api/accounts?id=<uuid>` - Update account settings
+- `DELETE /api/accounts?id=<uuid>` - Deactivate account
+
+### Worker API
+
+Worker endpoints require worker JWT token.
+
 - `GET /api/worker?action=pending-jobs` - Fetch jobs to process
 - `POST /api/worker?action=heartbeat` - Send health status
 - `POST /api/worker?action=update-job` - Update job status
 - `POST /api/worker?action=update-account` - Update account status
+- `GET /api/worker?action=stats` - Get worker statistics
 
-### Architecture
+## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                  TG Marketer WebApp                 │
-│              (React + Telegram SDK)                 │
-└────────────────────┬────────────────────────────────┘
-                     │
-                     ▼
-         ┌───────────────────────┐
-         │   TG Marketer API     │
-         │   (Node.js + Express) │
-         └───────┬───────────────┘
-                 │
-                 ▼
-         ┌───────────────────┐
-         │ Supabase Database │
-         │  (PostgreSQL)     │
-         └───────┬───────────┘
-                 │
-                 ▼
-         ┌───────────────────────┐
-         │  Worker Polling Loop  │
-         │   (Python + Telethon) │
-         └───────┬───────────────┘
-                 │
-        ┌────────┴────────┐
-        ▼                 ▼
-┌───────────────┐  ┌───────────────┐
-│  TG Session 1 │  │  TG Session 2 │  ...
-│ (.session file)  │ (.session file) │
-└───────────────┘  └───────────────┘
+┌─────────────────┐
+│   Web Frontend  │  (Optional simple status page)
+│     (React)     │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   Backend API   │  (Authentication + Job Management)
+│   (Node.js)     │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│    Supabase     │  (PostgreSQL Database)
+│   PostgreSQL    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Worker Polling  │  (Python + Telethon)
+│     Loop        │  (Runs locally on Windows/Linux)
+└────────┬────────┘
+         │
+    ┌────┴─────┐
+    ▼          ▼
+┌────────┐ ┌────────┐
+│Session1│ │Session2│ ... (Local .session files)
+└────────┘ └────────┘
 ```
+
+## 🔒 Security Best Practices
+
+1. **Change Default Passwords**: Update admin password immediately
+2. **Use Strong Secrets**: Generate secure API_SECRET_KEY and WORKER_JWT_SECRET
+3. **Enable HTTPS**: Use reverse proxy (Nginx/Caddy) with SSL certificates
+4. **Protect Session Files**: Keep `.session` files secure and encrypted
+5. **Rotate JWT Tokens**: Implement token rotation in production
+6. **Whitelist IPs**: Restrict worker API access to known IPs
+7. **Monitor Logs**: Regularly check for suspicious activity
+
+## 🛠️ Development
+
+### Build
+
+```bash
+npm run build
+```
+
+### Preview Build
+
+```bash
+npm run preview
+```
+
+### Type Checking
+
+```bash
+npx tsc --noEmit
+```
+
+## 📊 Database Schema
+
+Key tables:
+
+- **users** - User accounts with email/password authentication
+- **tg_accounts** - Telegram sending accounts with session keys
+- **jobs** - Message sending job queue
+- **worker_heartbeats** - Worker health and status
+- **campaigns** - Campaign management
+- **templates** - Message templates
+- **destinations** - Target chat/channel list
+
+For complete schema, see `supabase/migrations/` directory.
+
+## 🔧 Troubleshooting
+
+### Worker Can't Connect to API
+
+- Verify `tg_marketer_api_url` in worker's `config.toml`
+- Check JWT token in worker's `.env` file
+- Ensure API is running and accessible
+
+### Session Files Not Found
+
+- Verify `root_dir` path in `config.toml`
+- Check folder structure matches session_key
+- Ensure session files have `.session` extension
+
+### FloodWait Errors
+
+- Increase delays in worker config
+- Reduce hourly/daily limits per account
+- Add more accounts to distribute load
+
+### Database Connection Issues
+
+- Verify Supabase credentials in `.env`
+- Check Supabase project is active
+- Ensure migrations have been applied
 
 ## 📝 License
 
 MIT License - see LICENSE file for details.
+
+## 🤝 Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 📞 Support
+
+For issues and questions:
+- Check [worker/README.md](worker/README.md) for worker-specific help
+- Review logs in `worker/logs/worker.log`
+- Check API logs for backend issues

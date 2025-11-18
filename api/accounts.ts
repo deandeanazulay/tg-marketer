@@ -1,10 +1,15 @@
 import { mcp__supabase__execute_sql } from '../services/supabase';
 
-function decodeJwtPayload(token: string): { telegram_id: string; role: string } | null {
+function decodeJwtPayload(token: string): { user_id: string; role: string } | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
     const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
+
+    if (payload.exp && Date.now() / 1000 > payload.exp) {
+      return null;
+    }
+
     return payload;
   } catch (e) {
     console.error('Failed to decode JWT payload:', e);
@@ -21,7 +26,7 @@ export default async function handler(req: any, res: any) {
   const token = authHeader.split(' ')[1];
   const payload = decodeJwtPayload(token);
 
-  if (!payload || !payload.telegram_id) {
+  if (!payload || !payload.user_id) {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 
