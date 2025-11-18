@@ -3,7 +3,7 @@ import { useTelegramUI } from '../hooks/useTelegramUI';
 import { SkeletonList } from '../components/Skeleton';
 import { Button, Card, List, ListItem } from '../ui';
 import { telegram } from '../lib/telegram';
-import type { Campaign, CampaignStats, DataStore } from '../../data/types';
+import type { Campaign, CampaignStats, DataStore } from '../types';
 
 interface CampaignsProps {
   onCompose: () => void;

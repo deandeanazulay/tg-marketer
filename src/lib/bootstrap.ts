@@ -1,5 +1,5 @@
 import { telegram } from './telegram';
-import { BootstrapConfig } from '../data/types';
+import { BootstrapConfig } from './types';
 
 interface ClientBootstrapResult {
   cfg: BootstrapConfig;

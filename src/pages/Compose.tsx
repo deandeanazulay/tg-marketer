@@ -4,7 +4,7 @@ import { useTelegramUI } from '../hooks/useTelegramUI';
 import { Toast } from '../components/Toast';
 import { SkeletonList } from '../components/Skeleton';
 import { Button, Card, Input, List, ListItem } from '../ui';
-import type { Template, Destination, DataStore } from '../../data/types';
+import type { Template, Destination, DataStore } from '../types';
 
 interface ComposeProps {
   onBack: () => void;

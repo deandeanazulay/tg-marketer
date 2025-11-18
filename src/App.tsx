@@ -8,11 +8,11 @@ import { Campaigns } from './pages/Campaigns';
 import { Accounts } from './pages/Accounts';
 import { Settings } from './pages/Settings';
 import { Toast } from './components/Toast';
-import { createStore } from './data';
+import { MockStore } from './data/mock';
 
 type Screen = 'lobby' | 'destinations' | 'compose' | 'campaigns' | 'accounts' | 'settings';
 import { clientBootstrap, setUserModePreference } from './lib/bootstrap';
-import { BootstrapConfig, DataStore } from '../data/types';
+import { BootstrapConfig, DataStore } from './types';
 
 // Navigation icons as inline SVGs
 const NavIcons = {
@@ -87,7 +87,7 @@ function App() {
         setBootstrapConfig(defaultConfig);
         setIsAuthenticated(true);
         
-        const store = await createStore(defaultConfig, 'demo', 'demo_user');
+        const store = new MockStore(fetchedTelegramId || 'demo_user');
         setDataStore(store);
         
         setCurrentScreen('destinations');
@@ -104,7 +104,7 @@ function App() {
       setBootstrapConfig(cfg);
       setIsAuthenticated(true);
 
-      const store = await createStore(cfg, mode || 'demo', fetchedTelegramId);
+      const store = new MockStore(fetchedTelegramId || 'demo_user');
       setDataStore(store);
 
       // If user has a saved preference, skip lobby and go directly to app
@@ -135,7 +135,7 @@ function App() {
       
       // Re-initialize API service with new mode
       if (bootstrapConfig) {
-        const store = await createStore(bootstrapConfig, mode, telegramId);
+        const store = new MockStore(fetchedTelegramId || 'demo_user');
         setDataStore(store);
       }
       

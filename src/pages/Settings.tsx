@@ -3,7 +3,7 @@ import { useTelegramUI } from '../hooks/useTelegramUI';
 import { Toast } from '../components/Toast';
 import { Button, Card, List, ListItem } from '../ui';
 import { telegram } from '../lib/telegram';
-import type { DataStore } from '../../data/types';
+import type { DataStore } from '../types';
 
 interface SettingsProps {
   onLogout: () => void;

@@ -1,5 +1,18 @@
-import { type DataStore, type BootstrapConfig } from '../../data/types';
 import { MockStore } from '../data/mock';
+
+// Types redefined locally to avoid importing from server-side code
+interface DataStore {
+  getTemplates: (ownerId: string) => Promise<any[]>;
+  getDestinations: (ownerId: string) => Promise<any[]>;
+  getCampaigns: (ownerId: string) => Promise<any[]>;
+}
+
+interface BootstrapConfig {
+  adapters: { data: string };
+  features: Record<string, boolean>;
+  ui: { brand: string; accent: string };
+  defaults: { mode: 'demo' | 'real' };
+}
 
 class ApiService {
   private dataStore: DataStore | null = null;

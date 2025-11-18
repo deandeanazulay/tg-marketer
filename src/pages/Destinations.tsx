@@ -5,7 +5,7 @@ import { useSkeleton } from '../hooks/useSkeleton';
 import { Toast } from '../components/Toast';
 import { SkeletonList } from '../components/Skeleton';
 import { Button, Card, List, ListItem } from '../ui';
-import type { Destination, DataStore } from '../../data/types';
+import type { Destination, DataStore } from '../types';
 import { LIMITS } from '../utils/constants';
 
 // Inline SVG icons to avoid icon pack dependency

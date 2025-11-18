@@ -1,6 +1,6 @@
 # TG Marketer - Telegram Mini App
 
-A lightweight Telegram Mini App for managing marketing campaigns with a secure, self-hosted Docker stack.
+A lightweight Telegram Mini App for managing marketing campaigns with a secure, self-hosted Docker stack and distributed worker system for multi-account message sending.
 
 ## Features
 
@@ -10,6 +10,9 @@ A lightweight Telegram Mini App for managing marketing campaigns with a secure, 
 - **🌐 Automatic HTTPS**: Caddy reverse proxy with Let's Encrypt
 - **📱 Mini App Native**: Runs inside Telegram using official WebApp SDK
 - **🔄 Auto-Updates**: Optional Watchtower integration
+- **⚡ Multi-Account Worker**: Distributed Python worker for mass sending via Telethon
+- **📈 Rate Limiting**: Automatic hourly/daily limits with FloodWait handling
+- **🔄 Health Monitoring**: Worker heartbeat and status tracking
 
 ## 🚀 One-Command Setup
 
@@ -195,6 +198,104 @@ make dev-shell-db  # Open database shell
 2. **View logs**: `make logs` 
 3. **Reset environment**: `make dev-reset`
 4. **Open API shell**: `make dev-shell-api`
+
+## 🤖 Worker System
+
+TG Marketer includes a distributed worker system that runs locally on Windows (or other OS) and processes message sending jobs using multiple Telegram accounts via Telethon.
+
+### Worker Features
+
+- **Multi-Account Support**: Use unlimited Telegram accounts simultaneously
+- **Session Management**: Auto-discover and load local `.session` files
+- **Smart Rate Limiting**: Respects hourly/daily limits per account
+- **FloodWait Handling**: Automatic cooldown management
+- **Health Monitoring**: Regular heartbeat reporting to API
+- **Error Recovery**: Retry logic with exponential backoff
+
+### Quick Start
+
+1. **Install Worker Dependencies**:
+```bash
+cd worker
+python -m venv venv
+venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+```
+
+2. **Configure Worker**:
+```bash
+copy config.example.toml config.toml
+copy .env.example .env
+# Edit config.toml and .env with your settings
+```
+
+3. **Organize Session Files**:
+```
+premium/
+├── 989906046260/
+│   └── 989906046260.session
+├── 989906047212/
+│   └── 989906047212.session
+└── ...
+```
+
+4. **Run Worker**:
+```bash
+python src/main.py
+```
+
+5. **Register Accounts in TG Marketer**:
+   - Log into TG Marketer web interface
+   - Navigate to Accounts page
+   - Add each account with its session_key
+   - Set hourly/daily limits
+
+For detailed worker documentation, see [worker/README.md](worker/README.md).
+
+### Worker API Endpoints
+
+The system includes REST API endpoints for worker communication:
+
+- `GET /api/accounts` - List all sending accounts
+- `POST /api/accounts` - Register new account
+- `GET /api/worker?action=pending-jobs` - Fetch jobs to process
+- `POST /api/worker?action=heartbeat` - Send health status
+- `POST /api/worker?action=update-job` - Update job status
+- `POST /api/worker?action=update-account` - Update account status
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  TG Marketer WebApp                 │
+│              (React + Telegram SDK)                 │
+└────────────────────┬────────────────────────────────┘
+                     │
+                     ▼
+         ┌───────────────────────┐
+         │   TG Marketer API     │
+         │   (Node.js + Express) │
+         └───────┬───────────────┘
+                 │
+                 ▼
+         ┌───────────────────┐
+         │ Supabase Database │
+         │  (PostgreSQL)     │
+         └───────┬───────────┘
+                 │
+                 ▼
+         ┌───────────────────────┐
+         │  Worker Polling Loop  │
+         │   (Python + Telethon) │
+         └───────┬───────────────┘
+                 │
+        ┌────────┴────────┐
+        ▼                 ▼
+┌───────────────┐  ┌───────────────┐
+│  TG Session 1 │  │  TG Session 2 │  ...
+│ (.session file)  │ (.session file) │
+└───────────────┘  └───────────────┘
+```
 
 ## 📝 License
 

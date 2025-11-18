@@ -1,0 +1,32 @@
+[server]
+tg_marketer_api_url = "http://localhost:3000/api"
+jwt_token = "your_jwt_token_here"
+worker_id = "worker-win-001"
+
+[worker]
+poll_interval_ms = 2000
+max_parallel_sessions = 5
+heartbeat_interval_sec = 30
+idle_timeout_sec = 300
+
+[sessions]
+root_dir = "C:/dev/premium"
+auto_discover = true
+session_extension = ".session"
+
+[sending]
+default_delay_min_sec = 2
+default_delay_max_sec = 5
+group_delay_sec = 12
+flood_wait_multiplier = 1.2
+max_retries = 3
+
+[limits]
+global_hourly_limit = 500
+global_daily_limit = 2000
+
+[logging]
+level = "INFO"
+file = "logs/worker.log"
+max_size_mb = 100
+backup_count = 5
