@@ -1,0 +1,68 @@
+# Development domains (automatic HTTPS for .localhost)
+app.localhost {
+	reverse_proxy web:80
+	encode zstd gzip
+	
+	# Security headers
+	header {
+		# HSTS
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		# Content Security Policy
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.telegram.org; frame-ancestors 'none';"
+		# Other security headers
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Optional: Cross-Origin headers for Telegram Mini Apps
+		Cross-Origin-Embedder-Policy "credentialless"
+		Cross-Origin-Opener-Policy "same-origin"
+	}
+}
+
+api.localhost {
+	reverse_proxy api:3000
+	encode zstd gzip
+	
+	# CORS headers for API
+	header {
+		Access-Control-Allow-Origin "https://app.localhost"
+		Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+		Access-Control-Allow-Headers "Content-Type, Authorization"
+		Access-Control-Allow-Credentials "true"
+	}
+	
+	# Handle preflight requests
+	@options method OPTIONS
+	respond @options 204
+}
+
+# Production domains (uncomment and modify for production)
+# your-app.com {
+#	reverse_proxy web:80
+#	encode zstd gzip
+#	
+#	header {
+#		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+#		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://telegram.org; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.telegram.org; frame-ancestors 'none';"
+#		X-Content-Type-Options "nosniff"
+#		X-Frame-Options "DENY"
+#		X-XSS-Protection "1; mode=block"
+#		Referrer-Policy "strict-origin-when-cross-origin"
+#	}
+# }
+
+# api.your-app.com {
+#	reverse_proxy api:3000
+#	encode zstd gzip
+#	
+#	header {
+#		Access-Control-Allow-Origin "https://your-app.com"
+#		Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+#		Access-Control-Allow-Headers "Content-Type, Authorization"
+#		Access-Control-Allow-Credentials "true"
+#	}
+#	
+#	@options method OPTIONS
+#	respond @options 204
+# }

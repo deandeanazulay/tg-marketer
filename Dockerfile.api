@@ -1,0 +1,54 @@
+# Multi-stage build for API backend
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy source code
+COPY . .
+
+# Build TypeScript (if needed)
+RUN npm run build 2>/dev/null || echo "No build script found, using source directly"
+
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    sqlite \
+    wget \
+    curl
+
+# Copy package files and install production dependencies
+COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy built application or source
+COPY --from=builder /app/dist ./dist 2>/dev/null || true
+COPY --from=builder /app/api ./api
+COPY --from=builder /app/data ./data
+COPY --from=builder /app/scripts ./scripts
+
+# Copy migration files
+COPY --from=builder /app/drizzle ./drizzle 2>/dev/null || true
+
+# Create data directory
+RUN mkdir -p /data && chown node:node /data
+
+# Switch to non-root user
+USER node
+
+# Expose port
+EXPOSE 3000
+
+# Health check endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+
+# Start script that runs migrations then starts the server
+CMD ["sh", "-c", "npm run migrate 2>/dev/null || echo 'No migrations to run' && npm run seed 2>/dev/null || echo 'No seed script' && node api/server.js || node dist/server.js || echo 'Starting API server...' && tail -f /dev/null"]

@@ -1,0 +1,258 @@
+version: '3.8'
+
+services:
+  # Caddy reverse proxy with automatic HTTPS
+  gateway:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # Frontend web application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    restart: unless-stopped
+    expose:
+      - "80"
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+
+  # API backend
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL:-}
+      - SQLITE_DB_PATH=${SQLITE_DB_PATH:-/data/app.db}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+    volumes:
+      - sqldata:/data
+    secrets:
+      - sqlite_key
+    depends_on:
+      - db
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+
+  # PostgreSQL database (postgres profile)
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    profiles:
+      - postgres
+    environment:
+      - POSTGRES_DB=appdb
+      - POSTGRES_USER=appuser
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./config/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    command: >
+      postgres
+      -c config_file=/etc/postgresql/postgresql.conf
+      -c hba_file=/etc/postgresql/pg_hba.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U appuser -d appdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  # pgBouncer connection pooler (postgres profile)
+  pgbouncer:
+    image: pgbouncer/pgbouncer:latest
+    restart: unless-stopped
+    profiles:
+      - postgres
+    environment:
+      - DATABASES_HOST=db
+      - DATABASES_PORT=5432
+      - DATABASES_USER=appuser
+      - DATABASES_PASSWORD=${POSTGRES_PASSWORD}
+      - DATABASES_DBNAME=appdb
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=100
+      - DEFAULT_POOL_SIZE=25
+    ports:
+      - "6432:6432"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # pgBackRest backup service (postgres profile)
+  pgbackrest:
+    image: pgbackrest/pgbackrest:latest
+    restart: unless-stopped
+    profiles:
+      - postgres
+    environment:
+      - PGBACKREST_STANZA=main
+      - PGBACKREST_REPO1_PATH=/repo
+      - PGBACKREST_PG1_PATH=/var/lib/postgresql/data
+      - PGBACKREST_PG1_HOST=db
+      - PGBACKREST_PG1_USER=postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data:ro
+      - backups:/repo
+      - ./config/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "
+        # Initialize stanza if not exists
+        pgbackrest --stanza=main stanza-create --log-level-console=info || true
+        # Full backup daily at 2 AM, incremental every hour
+        echo '0 2 * * * pgbackrest --stanza=main backup --type=full' > /etc/crontabs/root
+        echo '0 * * * * pgbackrest --stanza=main backup --type=incr' >> /etc/crontabs/root
+        crond -f
+      "
+    networks:
+      - app-network
+
+  # SQLite database container (sqlite profile)
+  sqlite-db:
+    image: alpine:3.18
+    restart: unless-stopped
+    profiles:
+      - sqlite
+    volumes:
+      - sqldata:/data
+    secrets:
+      - sqlite_key
+    command: >
+      sh -c "
+        apk add --no-cache sqlite
+        # Initialize database if it doesn't exist
+        if [ ! -f /data/app.db ]; then
+          sqlite3 /data/app.db 'PRAGMA key=\"$(cat /run/secrets/sqlite_key)\"; CREATE TABLE IF NOT EXISTS _init (id INTEGER);'
+        fi
+        # Keep container running
+        tail -f /dev/null
+      "
+    healthcheck:
+      test: ["CMD", "sqlite3", "/data/app.db", "PRAGMA integrity_check;"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - app-network
+
+  # Litestream for SQLite replication (sqlite profile)
+  litestream:
+    image: litestream/litestream:latest
+    restart: unless-stopped
+    profiles:
+      - sqlite
+    volumes:
+      - sqldata:/data
+      - ./config/litestream.yml:/etc/litestream.yml:ro
+    secrets:
+      - minio_access_key
+      - minio_secret_key
+    environment:
+      - LITESTREAM_ACCESS_KEY_ID_FILE=/run/secrets/minio_access_key
+      - LITESTREAM_SECRET_ACCESS_KEY_FILE=/run/secrets/minio_secret_key
+    depends_on:
+      sqlite-db:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    command: litestream replicate
+    networks:
+      - app-network
+
+  # MinIO S3-compatible storage (sqlite profile)
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    profiles:
+      - sqlite
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin123}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - app-network
+
+  # Watchtower for automatic updates (optional)
+  watchtower:
+    image: containrrr/watchtower:latest
+    restart: unless-stopped
+    profiles:
+      - watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=3600
+      - WATCHTOWER_INCLUDE_STOPPED=true
+    networks:
+      - app-network
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pgdata:
+  sqldata:
+  backups:
+  minio_data:
+
+networks:
+  app-network:
+    driver: bridge
+
+secrets:
+  sqlite_key:
+    file: ./secrets/sqlite_key.txt
+  minio_access_key:
+    file: ./secrets/minio_access_key.txt
+  minio_secret_key:
+    file: ./secrets/minio_secret_key.txt

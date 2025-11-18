@@ -1,0 +1,17 @@
+# Litestream configuration for SQLite replication
+dbs:
+  - path: /data/app.db
+    replicas:
+      - type: s3
+        endpoint: http://minio:9000
+        bucket: litestream-backups
+        path: app.db
+        region: us-east-1
+        access-key-id: ${LITESTREAM_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_SECRET_ACCESS_KEY}
+        # Sync every 10 seconds
+        sync-interval: 10s
+        # Retain snapshots for 72 hours
+        retention: 72h
+        # Snapshot every hour
+        snapshot-interval: 1h
