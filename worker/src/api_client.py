@@ -115,3 +115,56 @@ class TGMarketerAPIClient:
         except Exception as e:
             logger.error(f"Failed to list accounts: {e}")
             return []
+
+    async def log_session(self, session_id: str, log_level: str, message: str, details: Optional[Dict] = None) -> bool:
+        """Log a message for a session."""
+        data = {
+            'action': 'log',
+            'session_id': session_id,
+            'log_level': log_level,
+            'message': message,
+            'details': details or {}
+        }
+
+        try:
+            result = self._request('POST', '/sessions', json=data)
+            return result is not None
+        except Exception as e:
+            logger.error(f"Failed to log session message: {e}")
+            return False
+
+    async def update_session_stats(self, session_id: str, messages_sent: int = 0,
+                                   messages_failed: int = 0, groups_targeted: int = 0) -> bool:
+        """Update session statistics."""
+        data = {
+            'action': 'update-stats',
+            'session_id': session_id,
+            'messages_sent': messages_sent,
+            'messages_failed': messages_failed,
+            'groups_targeted': groups_targeted
+        }
+
+        try:
+            result = self._request('POST', '/sessions', json=data)
+            return result is not None
+        except Exception as e:
+            logger.error(f"Failed to update session stats: {e}")
+            return False
+
+    def get_sessions(self, user_id: str) -> List[Dict]:
+        """Get all sessions for a user."""
+        try:
+            result = self._request('GET', f'/sessions?action=list&user_id={user_id}')
+            return result.get('sessions', []) if result else []
+        except Exception as e:
+            logger.error(f"Failed to get sessions: {e}")
+            return []
+
+    def get_session(self, session_id: str, user_id: str) -> Optional[Dict]:
+        """Get a specific session."""
+        try:
+            result = self._request('GET', f'/sessions?action=get&id={session_id}&user_id={user_id}')
+            return result.get('session') if result else None
+        except Exception as e:
+            logger.error(f"Failed to get session: {e}")
+            return None

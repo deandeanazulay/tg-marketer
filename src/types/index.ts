@@ -122,3 +122,45 @@ export interface BootstrapConfig {
     mode: "demo" | "real";
   };
 }
+
+export interface SessionFolder {
+  id: string;
+  user_id: string;
+  telegram_user_id: string;
+  folder_path: string;
+  display_name: string;
+  status: 'active' | 'inactive' | 'running' | 'error';
+  telegram_exe_present: boolean;
+  session_file_present: boolean;
+  last_script_run?: Date;
+  script_status: 'idle' | 'running' | 'stopped' | 'error';
+  script_config: {
+    delay_min_sec: number;
+    delay_max_sec: number;
+    group_delay_sec: number;
+    max_messages_per_cycle: number;
+  };
+  error_message?: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface SessionScriptLog {
+  id: string;
+  session_id: string;
+  log_level: 'info' | 'warning' | 'error' | 'success';
+  message: string;
+  details: Record<string, any>;
+  created_at: Date;
+}
+
+export interface SessionScriptStats {
+  id: string;
+  session_id: string;
+  messages_sent: number;
+  messages_failed: number;
+  groups_targeted: number;
+  last_reset: Date;
+  created_at: Date;
+  updated_at: Date;
+}

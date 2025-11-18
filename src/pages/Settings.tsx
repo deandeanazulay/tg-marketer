@@ -7,9 +7,10 @@ import type { DataStore } from '../types';
 
 interface SettingsProps {
   onManageAccounts: () => void;
+  onManageSessions?: () => void;
 }
 
-export function Settings({ onManageAccounts }: SettingsProps) {
+export function Settings({ onManageAccounts, onManageSessions }: SettingsProps) {
   const [user, setUser] = useState(null);
 
   useTelegramUI({
@@ -86,6 +87,15 @@ export function Settings({ onManageAccounts }: SettingsProps) {
             <span style={{ color: telegram.getTheme().text_color }}>Manage Accounts</span>
           </div>
         </ListItem>
+
+        {onManageSessions && (
+          <ListItem onClick={onManageSessions}>
+            <div className="flex items-center space-x-3">
+              <span className="text-lg">📁</span>
+              <span style={{ color: telegram.getTheme().text_color }}>Session Manager</span>
+            </div>
+          </ListItem>
+        )}
 
         <ListItem>
           <div className="flex items-center space-x-3">

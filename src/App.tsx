@@ -6,10 +6,11 @@ import { Campaigns } from './pages/Campaigns';
 import { Compose } from './pages/Compose';
 import { Destinations } from './pages/Destinations';
 import { Settings } from './pages/Settings';
+import { SessionManager } from './pages/SessionManager';
 import { createClient } from '@supabase/supabase-js';
 import type { DataStore } from './types';
 
-type Page = 'lobby' | 'destinations' | 'compose' | 'campaigns' | 'accounts' | 'settings';
+type Page = 'lobby' | 'destinations' | 'compose' | 'campaigns' | 'accounts' | 'settings' | 'sessions';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -122,6 +123,14 @@ function App() {
         {currentPage === 'settings' && (
           <Settings
             onManageAccounts={() => navigateTo('accounts')}
+            onManageSessions={() => navigateTo('sessions')}
+          />
+        )}
+
+        {currentPage === 'sessions' && (
+          <SessionManager
+            onBack={() => navigateTo('settings')}
+            userId={ownerId}
           />
         )}
       </div>
