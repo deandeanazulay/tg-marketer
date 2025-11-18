@@ -6,14 +6,10 @@ import { telegram } from '../lib/telegram';
 import type { DataStore } from '../types';
 
 interface SettingsProps {
-  onLogout: () => void;
-  onBackToLobby: () => void;
-  dataStore: DataStore;
-  ownerId: string;
-  currentMode: 'demo' | 'real' | null;
+  onManageAccounts: () => void;
 }
 
-export function Settings({ onLogout, onBackToLobby, dataStore, ownerId, currentMode }: SettingsProps) {
+export function Settings({ onManageAccounts }: SettingsProps) {
   const [user, setUser] = useState(null);
 
   useTelegramUI({
@@ -22,36 +18,11 @@ export function Settings({ onLogout, onBackToLobby, dataStore, ownerId, currentM
 
   useEffect(() => {
     // Get user from Telegram WebApp
-    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-      setUser(window.Telegram.WebApp.initDataUnsafe?.user || null);
+    const telegramUser = telegram.getUser();
+    if (telegramUser) {
+      setUser(telegramUser as any);
     }
   }, []);
-
-  const handleLogout = async () => {
-    const confirmed = await Toast.confirm('Are you sure you want to logout?');
-    if (confirmed) {
-      localStorage.removeItem('telegram_jwt');
-      onLogout();
-    }
-  };
-
-  const handleBackToLobby = async () => {
-    const confirmed = await Toast.confirm('Switch mode? You\'ll return to the lobby to choose Demo or Real App.');
-    if (confirmed) {
-      // Clear user preference to force lobby selection
-      try {
-        const jwt = localStorage.getItem('telegram_jwt');
-        const apiUrl = import.meta.env.VITE_API_URL || '/api';
-        await fetch(`${apiUrl}/user-mode`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${jwt}` },
-        });
-      } catch (error) {
-        console.warn('Failed to clear user preference:', error);
-      }
-      onBackToLobby();
-    }
-  };
 
   return (
     <div className="flex-1 flex flex-col">
@@ -108,30 +79,11 @@ export function Settings({ onLogout, onBackToLobby, dataStore, ownerId, currentM
       </Card>
 
       {/* Settings List */}
-      <List className="flex-shrink-0">        
-        <ListItem onClick={handleBackToLobby}>
+      <List className="flex-shrink-0">
+        <ListItem onClick={onManageAccounts}>
           <div className="flex items-center space-x-3">
-            <span className="text-lg">🔄</span>
-            <span style={{ color: telegram.getTheme().text_color }}>Switch Mode</span>
-          </div>
-        </ListItem>
-
-        <ListItem
-          rightElement={
-            <span 
-              className="text-xs px-2 py-0.5 rounded-full font-medium"
-              style={{ 
-                backgroundColor: currentMode === 'demo' ? '#34c759' + '20' : telegram.getTheme().button_color + '20',
-                color: currentMode === 'demo' ? '#34c759' : telegram.getTheme().button_color
-              }}
-            >
-              {currentMode === 'demo' ? 'Mock Data' : currentMode === 'real' ? 'Live Data' : 'Unknown'}
-            </span>
-          }
-        >
-          <div className="flex items-center space-x-3">
-            <span className="text-lg">💾</span>
-            <span style={{ color: telegram.getTheme().text_color }}>Data Source</span>
+            <span className="text-lg">📱</span>
+            <span style={{ color: telegram.getTheme().text_color }}>Manage Accounts</span>
           </div>
         </ListItem>
 
@@ -153,19 +105,19 @@ export function Settings({ onLogout, onBackToLobby, dataStore, ownerId, currentM
       {/* App Info */}
       <Card variant="outlined" className="flex-shrink-0">
         <div className="text-center">
-          <h3 
+          <h3
             className="text-base font-semibold mb-1"
             style={{ color: telegram.getTheme().text_color }}
           >
             TG Marketer
           </h3>
-          <p 
+          <p
             className="text-sm mb-2"
             style={{ color: telegram.getTheme().hint_color }}
           >
-            Version 1.0.0
+            Version 2.1.0
           </p>
-          <p 
+          <p
             className="text-xs"
             style={{ color: telegram.getTheme().hint_color }}
           >
@@ -173,19 +125,6 @@ export function Settings({ onLogout, onBackToLobby, dataStore, ownerId, currentM
           </p>
         </div>
       </Card>
-
-      {/* Logout Button */}
-      <div className="flex-shrink-0 pt-2 mt-auto">
-        <Button 
-          variant="destructive" 
-          onClick={handleLogout}
-          fullWidth
-          className="w-full flex items-center justify-center space-x-2"
-        >
-          <span className="text-sm">🚪</span>
-          <span>Logout</span>
-        </Button>
-      </div>
       </div>
     </div>
   );

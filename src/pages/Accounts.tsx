@@ -55,10 +55,10 @@ type Account = {
 };
 
 interface AccountsProps {
-  jwt: string | null;
+  onBack: () => void;
 }
 
-export const Accounts: React.FC<AccountsProps> = ({ jwt }) => {
+export const Accounts: React.FC<AccountsProps> = ({ onBack }) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +93,7 @@ export const Accounts: React.FC<AccountsProps> = ({ jwt }) => {
 
   useEffect(() => {
     loadAccounts();
-  }, [jwt]);
+  }, []);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
